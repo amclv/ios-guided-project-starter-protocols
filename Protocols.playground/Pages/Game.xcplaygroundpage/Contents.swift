@@ -11,6 +11,22 @@ protocol GeneratesRandomNumbers {
     func random() -> Int
 }
 
+protocol DiceGame {
+    var dice: Dice { get set }
+    var players: [Player] { get set }
+    
+    func play()
+}
+
+protocol DiceGameDelegate {
+    // announce when the game starts
+    func gameDidStart(game: DiceGame)
+    // announce the number that was rolled
+    func game(game: DiceGame, didStartNewTurnWithDiceRoll roll: Int)
+    // annount when the game ends
+    func gameDidEnd(game: DiceGame)
+}
+
 class OneThroughTen: GeneratesRandomNumbers {
     func random() -> Int {
         return Int.random(in: 1...10)
@@ -31,22 +47,104 @@ class Dice {
     }
 }
 
-//: Now, let's define a couple protocols for managing a dice-based game.
+class DiceGameTracker: DiceGameDelegate {
+    var numberOfTurns = 0
+    
+    func gameDidStart(game: DiceGame) {
+        numberOfTurns = 0
+        print("Started a new game!")
+    }
+    
+    func game(game: DiceGame, didStartNewTurnWithDiceRoll roll: Int) {
+        numberOfTurns += 1
+        print("Rolled a \(roll)")
+    }
+    
+    func gameDidEnd(game: DiceGame) {
+        print("The game lasted \(numberOfTurns).")
+    }
+}
 
+class Player {
+    let id: Int
+    let knockOutNumber: Int = Int.random(in: 6...9)
+    var score: Int = 0
+    var knockedOut: Bool = false
+    
+    init(id: Int) {
+        self.id = id
+    }
+}
 
+class KnockOut: DiceGame {
+    
+    var dice: Dice = Dice(sides: 6, generator: OneThroughTen())
+    var players: [Player] = []
+    
+    // this is the "Tracker"
+    var delegate: DiceGameDelegate?
+    
+    init(numberOfPlayers: Int) {
+        // 20
+        for i in 1...numberOfPlayers {
+            let aPlayer = Player(id: i)
+            players.append(aPlayer)
+        }
+    }
+    
+    func play() {
+        delegate?.gameDidStart(game: self)
+        var isGameEnded = false
+        
+        while !isGameEnded {
+            for player in players where player.knockedOut == false {
+                let diceRollSum = dice.roll() + dice.roll()
+                
+                delegate?.game(game: self, didStartNewTurnWithDiceRoll: diceRollSum)
+                
+                if player.knockOutNumber == diceRollSum {
+                    player.knockedOut = true
+                    
+                    // check if all the players are knocked out, or if some are still playing
+                    var activePlayers: [Player] = []
+                    
+                    for player in players {
+                        if player.knockedOut == false {
+                            activePlayers.append(player)
+                        }
+                    }
+                    
+                    if activePlayers.count == 0 {
+                        // the game has ended
+                        isGameEnded == true
+                        print("All players have been knocked out!")
+                        delegate?.gameDidEnd(game: self)
+                        return
+                    }
+                } else {
+                    player.score += diceRollSum
+                    if player.score >= 100 {
+                        isGameEnded = true
+                        print("Player \(player.id) has won with a final score of \(player.score)")
+                        delegate?.gameDidEnd(game: self)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
 
-//: Lastly, we'll create a custom class for tracking a player in our dice game.
+let myKnockOut = KnockOut(numberOfPlayers: 15)
+let tracker = DiceGameTracker()
 
-
-
-//: With all that configured, let's build our dice game class called _Knock Out!_
-
-
-
-//: The following class is used to track the status of the above game, and will conform to the `DiceGameDelegate` protocol.
-
+myKnockOut.delegate = tracker
+myKnockOut.play()
 
 
 //: Finally, we need to test out our game. Let's create a game instance, add a tracker, and instruct the game to play.
 
-
+// Make the protocol (DiceGameDelegate)
+// Make the `var delegate` in the thing you want to delegate work from. (delegator) example: KnockOut class
+// call the delegate.someFunction at the appropriate place
+// set the `var delegate` property to an instance of something that conforms to the delegate protocol
